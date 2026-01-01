@@ -9,8 +9,7 @@ from src.tools.parsers import parse_junit_xml, parse_cobertura_xml, read_securit
 # --- Configuration ---
 MIN_COVERAGE_THRESHOLD = 0.75
 MAX_FACE_THRESHOLD = 0.55
-# Using the experimental 2.0 Flash as requested (or fallback to 1.5-flash)
-MODEL_NAME = "gemini-3-flash" 
+MODEL_NAME = "gemini-1.5-pro"
 
 def main():
     parser = argparse.ArgumentParser(description="AI Release Manager Agent")
