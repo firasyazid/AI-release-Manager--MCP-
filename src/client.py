@@ -9,7 +9,7 @@ from src.tools.parsers import parse_junit_xml, parse_cobertura_xml, read_securit
 # --- Configuration ---
 MIN_COVERAGE_THRESHOLD = 0.75
 MAX_FACE_THRESHOLD = 0.55
-MODEL_NAME = "gemini-1.5-pro"
+MODEL_NAME = "gemini-3-flash-preview"
 
 def main():
     parser = argparse.ArgumentParser(description="AI Release Manager Agent")
