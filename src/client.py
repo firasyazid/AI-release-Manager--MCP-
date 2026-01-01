@@ -21,7 +21,7 @@ def main():
         sys.exit(1)
 
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-1.5-pro')
 
     print("[INFO] Starting AI Release Manager...")
     
@@ -60,7 +60,7 @@ def main():
     
     1. Unit Tests:
        - Status: {"PASSED" if test_data and test_data.failures == 0 else "FAILED"}
-       - Details: {test_data.dict() if test_data else "Data missing"}
+       - Details: {test_data.model_dump() if test_data else "Data missing"}
        - RULE: If failures > 0, REJECT unless marked explicitly as safe (none are).
 
     2. Code Coverage:
