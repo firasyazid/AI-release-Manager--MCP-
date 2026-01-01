@@ -160,6 +160,8 @@ def main():
         )
         
         result = json.loads(response.text)
+        if isinstance(result, list):
+            result = result[0]
         
     except Exception as e:
         print(f"[FATAL] AI Analysis failed: {e}")
