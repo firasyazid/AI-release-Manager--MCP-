@@ -91,6 +91,12 @@ def main():
         
     except Exception as e:
         print(f"[FATAL] AI Analysis failed: {e}")
+        print("[DEBUG] Listing available models:")
+        try:
+            for model in client.models.list():
+                print(f"  - {model.name}")
+        except Exception as list_err:
+            print(f"  [ERROR] Could not list models: {list_err}")
         sys.exit(1)
 
     # 4. Report
