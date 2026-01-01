@@ -2,28 +2,31 @@ import os
 import argparse
 import json
 import sys
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from src.tools.parsers import parse_junit_xml, parse_cobertura_xml, read_security_config
 
 # --- Configuration ---
 MIN_COVERAGE_THRESHOLD = 0.75
 MAX_FACE_THRESHOLD = 0.55
+# Using the experimental 2.0 Flash as requested (or fallback to 1.5-flash)
+MODEL_NAME = "gemini-3-flash" 
 
 def main():
     parser = argparse.ArgumentParser(description="AI Release Manager Agent")
-    parser.add_argument("--artifacts", required=True, help="Path to artifacts directory containing test-results.xml and coverage.xml")
-    parser.add_argument("--repo-root", required=True, help="Path to the root of the repository being checked")
+    parser.add_argument("--artifacts", required=True, help="Path to artifacts directory")
+    parser.add_argument("--repo-root", required=True, help="Path to repo root")
     args = parser.parse_args()
 
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        print("[ERROR] GEMINI_API_KEY environment variable not set.")
+        print("[ERROR] GEMINI_API_KEY not set.")
         sys.exit(1)
 
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-1.5-pro')
+    # Initialize New Client
+    client = genai.Client(api_key=api_key)
 
-    print("[INFO] Starting AI Release Manager...")
+    print(f"[INFO] Starting AI Release Manager (Model: {MODEL_NAME})...")
     
     # Paths
     test_xml = os.path.join(args.artifacts, "test-results.xml")
@@ -52,63 +55,58 @@ def main():
     print(f"[INFO] Security Threshold: {sec_config.face_threshold}")
 
     # 2. Construct Prompt
+    # We want JSON output. The new SDK supports structured output natively.
     prompt = f"""
-    You are the Senior Release Manager (SRE) for a Critical Face Verification System.
-    Your task is to decide if this release is safe for Production.
+    Act as a Senior Release Manager.
+    Analyze this CI/CD data for a Face Verification System.
 
-    ## PIPELINE DATA
+    DATA:
+    1. Unit Tests: {"PASSED" if test_data and test_data.failures == 0 else "FAILED"}
+       Details: {test_data.model_dump() if test_data else "Missing"}
+       Running {test_data.total if test_data else 0} tests.
+       
+    2. Coverage: {cov_data.line_rate if cov_data else "0.0"} (Min: {MIN_COVERAGE_THRESHOLD})
     
-    1. Unit Tests:
-       - Status: {"PASSED" if test_data and test_data.failures == 0 else "FAILED"}
-       - Details: {test_data.model_dump() if test_data else "Data missing"}
-       - RULE: If failures > 0, REJECT unless marked explicitly as safe (none are).
+    3. Config: Face Threshold {sec_config.face_threshold} (Max Safe: {MAX_FACE_THRESHOLD})
 
-    2. Code Coverage:
-       - Current Rate: {cov_data.line_rate if cov_data else "Unknown"}
-       - Minimum Required: {MIN_COVERAGE_THRESHOLD}
-       - RULE: If code coverage < {MIN_COVERAGE_THRESHOLD}, consider Rejecting or Warning based on severity.
-
-    3. Security Configuration:
-       - Detected Threshold: {sec_config.face_threshold}
-       - Max Allowed: {MAX_FACE_THRESHOLD}
-       - RULE: If Detected > Max, REJECT IMMEDIATELY (Security Risk).
-
-    ## INSTRUCTIONS
-    Analyze the data above.
-    1. Determine verdict: APPROVED or REJECTED.
-    2. Write a summary explaining the decision.
-
-    ## OUTPUT FORMAT (JSON)
-    {{
-        "verdict": "APPROVED" | "REJECTED",
-        "confidence_score": <0-100>,
-        "analysis_summary": "<markdown text>"
-    }}
+    TASK:
+    - If Test Failures > 0 => REJECT.
+    - If Config Threshold > {MAX_FACE_THRESHOLD} => REJECT (Security Risk).
+    - If Coverage < {MIN_COVERAGE_THRESHOLD} => WARNING or REJECT.
+    
+    Output JSON with fields: verdict (APPROVED/REJECTED), confidence_score (int), analysis_summary (string).
     """
 
     # 3. Call LLM
     print("[INFO] Analyzing with Gemini...")
     try:
-        response = model.generate_content(prompt)
-        text = response.text.replace("```json", "").replace("```", "").strip()
-        result = json.loads(text)
+        response = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json"  # Native JSON mode
+            )
+        )
+        
+        result = json.loads(response.text)
+        
     except Exception as e:
         print(f"[FATAL] AI Analysis failed: {e}")
         sys.exit(1)
 
-    # 4. Report and Exit
+    # 4. Report
     print("-" * 40)
-    print(f"VERDICT: {result['verdict']}")
+    print(f"VERDICT: {result.get('verdict', 'UNKNOWN')}")
     print("-" * 40)
 
     # Save artifacts
     with open(os.path.join(args.artifacts, "release_summary.md"), "w") as f:
-        f.write(result["analysis_summary"])
+        f.write(result.get("analysis_summary", "No summary provided."))
     
     with open(os.path.join(args.artifacts, "release_decision.json"), "w") as f:
         json.dump(result, f, indent=2)
 
-    if result["verdict"] == "APPROVED":
+    if result.get("verdict") == "APPROVED":
         sys.exit(0)
     else:
         sys.exit(1)
