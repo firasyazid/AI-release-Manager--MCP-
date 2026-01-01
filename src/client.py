@@ -159,7 +159,14 @@ def main():
             )
         )
         
-        result = json.loads(response.text)
+        raw_response = response.text
+        # Clean markdown code blocks if present
+        if "```json" in raw_response:
+            raw_response = raw_response.split("```json")[1].split("```")[0].strip()
+        elif "```" in raw_response:
+            raw_response = raw_response.split("```")[1].split("```")[0].strip()
+            
+        result = json.loads(raw_response)
         if isinstance(result, list):
             result = result[0]
         
