@@ -1,61 +1,106 @@
-# AI Release Manager (MCP-Powered Judge)
+# AI Release Manager
 
-## Overview
-The **AI Release Manager** is an intelligent quality gate agent designed to run within CI/CD pipelines (GitHub Actions). Unlike traditional scripts that fail on simple binary conditions (e.g., `exit 1` if coverage < 80%), this agent uses an **LLM (Large Language Model)** via the **Model Context Protocol (MCP)** to "reason" about the release.
+The AI Release Manager is an advanced, autonomous quality gate designed for high-stakes CI/CD pipelines. Acting as a virtual Site Reliability Engineer (SRE), it leverages the Google Gemini 1.5 Pro model to perform semantic analysis of build artifacts.
 
-It acts as a **Senior Site Reliability Engineer (SRE)** that reviews:
-1.  Test Results (`test-results.xml`)
-2.  Code Coverage (`coverage.xml`)
-3.  Build Logs & Warnings
-4.  Code Diffs
+Unlike traditional static analysis tools that rely solely on hard thresholds, this system understands the context of code changes, test failures, and security configurations to provide a comprehensive "Go/No-Go" decision for production deployments.
 
-## Core Architecture
+## Core Capabilities
 
-### 1. The "Judge" Agent
-Use Google Gemini (or OpenAI) to analyze the artifacts. It produces:
-*   **Release Score (0-100)**: A confidence metric.
-*   **Decision**: `APPROVED`, `WARNING`, or `REJECTED`.
-*   **Release Summary**: A Markdown report explaining the decision.
+### 1. automated Release Notes Generation
+For every execution, the system analyzes the specific git commit history associated with the build. It generates a detailed, semantic report of changes, categorizing them into Features, Fixes, and Technical Debt. This eliminates the need for manual changelog maintenance.
 
-### 2. MCP Server (`ops/mcp_server.py`)
-Provides the Agent with "Tools" to read the pipeline state:
-*   `read_test_summary()`: Parses JUnit XML.
-*   `read_coverage_report()`: Parses Cobertura/Jacoco XML.
-*   `analyze_logs()`: Extracts errors and warnings from text logs.
-*   `get_diff_impact()`: Analyzes the git diff.
+### 2. Context-Aware Decision Engine
+The manager aggregates data from multiple sources to render a final verdict:
+- **Test Intelligence**: Parses JUnit XML reports to evaluate pass/fail rates and execution time stability.
+- **Code Coverage Enforcement**: Validates line coverage against strict targets (default > 75%).
+- **Security Auditing**: Scans configuration files to ensure critical security constants (like Face Verification Thresholds) remain within safe limits.
 
-## Directory Structure
+### 3. Dual-Mode Interface
+- **CLI Mode**: Optimized for CI/CD environments (GitHub Actions, GitLab CI) to block or promote builds automatically.
+- **MCP Server Mode**: Implements the Model Context Protocol, allowing external AI agents (such as Claude Desktop or IDE extensions) to query the repository's health status interactively.
+
+## System Architecture
+
+The system orchestrates data flow between the version control system, build artifacts, and the LLM reasoning engine.
+
+```mermaid
+graph TD
+    subgraph Input
+        Git[Git Commit History]
+        Tests[JUnit Test Results]
+        Coverage[Cobertura Coverage Report]
+        Config[Security Settings]
+    end
+
+    subgraph "AI Release Manager"
+        Parser[Context Parser] -->|Aggregates Data| Prompt[Prompt Engineering Engine]
+        Prompt -->|Queries| LLM[Gemini 1.5 Pro]
+    end
+
+    subgraph Output
+        LLM -->|Generates| Decision[Deployment Verdict]
+        LLM -->|Generates| Notes[Semantic Release Notes]
+        Decision -->|Triggers| Pipeline[CI/CD Gateway]
+    end
+
+    Git --> Parser
+    Tests --> Parser
+    Coverage --> Parser
+    Config --> Parser
 ```
-AI Release Manager/
-├── README.md           # This file
-├── requirements.txt    # Dependencies (mcp, google-generativeai, pydantic)
-├── main.py             # Entry point for the CI step
-├── config.py           # Threshold configurations
-└── mcp_server/         # The MCP Server implementation
-    ├── server.py       # Server setup
-    └── tools.py        # Tool definitions
+
+## Installation
+
+Requires Python 3.10 or higher.
+
+1.  **Clone the repository**:
+    ```bash
+    git clone https://github.com/firasyazid/AI-release-Manager--MCP-.git
+    ```
+
+2.  **Install dependencies**:
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+3.  **Environment Setup**:
+    Export your Google Gemini API key:
+    ```bash
+    export GEMINI_API_KEY="your_api_key_here"
+    ```
+
+## Integration Guide
+
+### Running in CI/CD (CLI Mode)
+
+Execute the client script towards the end of your build pipeline. It requires paths to the generated test and coverage artifacts.
+
+```bash
+python src/client.py \
+    --artifacts ./path/to/build/artifacts \
+    --repo-root ./path/to/git/repo
 ```
 
-## Workflow Integration
-This project is designed to be called in a GitHub Actions workflow step between **Build** and **Deploy**.
+### Generated Outputs
 
-```yaml
-  - name: Run AI Release Manager
-    env:
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-    run: |
-      pip install -r ai_release_manager/requirements.txt
-      python ai_release_manager/main.py --artifacts ./artifacts
+Upon completion, the manager generates two critical artifacts in the specified output directory:
+
+1.  **`release_decision.json`**: A machine-readable file containing the specific verdict (APPROVED/REJECTED), confidence score, and detailed metric breakdown.
+2.  **`release_notes.md`**: A human-readable Markdown document summarizing the changes in the latest commits, ready for publication to your changelog or release page.
+
+### Running as an Agent (MCP Mode)
+
+To expose the toolset to an external AI assistant:
+
+```bash
+python src/server.py
 ```
 
-## How it Decides
-The agent follows a "Constitution":
-1.  **Critical Failures**: Any failed test = Automatic REJECTION (unless override granted).
-2.  **Coverage Drops**: >5% drop = REJECTION. <2% drop = WARNING.
-3.  **Log anomalies**: "Exception" or "Error" in logs = WARNING.
-4.  **Sentiment**: Does the changelog match the diff?
+This starts the Model Context Protocol server on Stdio, enabling connected agents to utilize the project's logic tools (parsing, config reading, git analysis) directly.
 
-## Output
-The script generates two files:
-1.  `release_decision.json`: Machine-readable verdict (passed/failed).
-2.  `release_summary.md`: Human-readable report to be posted to GitHub Checks/PRs.
+## Configuration
+
+The decision logic is governed by configurable constants within `src/client.py`:
+
+-   **`MIN_COVERAGE_THRESHOLD`** (Default: 0.75): The absolute minimum code coverage percentage required for approval.
+-   **`MAX_FACE_THRESHOLD`** (Default: 0.55): The maximum allowable distance for face verification. Values exceeding this are considered a critical security risk.

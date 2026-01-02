@@ -1,4 +1,5 @@
 import os
+import subprocess
 import xml.etree.ElementTree as ET
 import re
 from typing import Dict, Any, List, Optional
@@ -141,3 +142,40 @@ def analyze_logs(log_content: str, max_lines: int = 50) -> LogAnalysis:
         critical_errors=errors[:max_lines],
         warnings=warnings[:max_lines]
     )
+
+def get_latest_code_changes(repo_path: str, commits_count: int = 5) -> str:
+    """
+    Retrieves the git log and diff for the latest commits.
+    
+    Args:
+        repo_path (str): Path to the git repository.
+        commits_count (int): Number of recent commits to analyze.
+        
+    Returns:
+        str: A text summary of the changes (commit messages + stat).
+    """
+    try:
+        # Check if git is available
+        subprocess.check_output(["git", "--version"])
+        
+        # Get last N commit messages
+        log_cmd = [
+            "git", "-C", repo_path, 
+            "log", f"-n {commits_count}", 
+            "--pretty=format:%h - %s (%an)"
+        ]
+        log_output = subprocess.check_output(log_cmd, text=True, stderr=subprocess.STDOUT).strip()
+        
+        # Get stats of what changed
+        stat_cmd = [
+            "git", "-C", repo_path,
+            "diff", "--stat", f"HEAD~{commits_count}", "HEAD"
+        ]
+        stat_output = subprocess.check_output(stat_cmd, text=True, stderr=subprocess.STDOUT).strip()
+        
+        return f"### Recent Commits:\n{log_output}\n\n### Changed Files:\n{stat_output}"
+        
+    except subprocess.CalledProcessError as e:
+        return f"Error reading git history: {e.output}"
+    except Exception as e:
+        return f"Error accessing git repo: {str(e)}"
