@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  # MCP Server mode - for interactive use with Claude Desktop
+  mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-release-manager-mcp
+    environment:
+      - PYTHONUNBUFFERED=1
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    ports:
+      - "8000:8000"
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./artifacts:/app/artifacts
+      - ./test-results:/app/test-results
+    command: python src/server.py
+    restart: unless-stopped
+
+  # CI/CD mode - for automated quality gates
+  ci-gate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-release-manager-ci
+    environment:
+      - PYTHONUNBUFFERED=1
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    volumes:
+      - ./artifacts:/app/artifacts
+      - ./test-results:/app/test-results
+      - .:/app/repo
+    working_dir: /app
+    command: >
+      python src/client.py
+      --artifacts /app/artifacts
+      --repo-root /app/repo
+    restart: "no"
+
+  # Development environment (optional)
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-release-manager-dev
+    environment:
+      - PYTHONUNBUFFERED=1
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    volumes:
+      - .:/app
+      - /app/.venv  # Prevent volume mounting of venv
+    stdin_open: true
+    tty: true
+    command: /bin/bash
+    restart: unless-stopped
