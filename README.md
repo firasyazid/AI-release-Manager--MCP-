@@ -6,16 +6,13 @@ Unlike traditional static analysis tools that rely solely on hard thresholds, th
 
 ## Core Capabilities
 
-### 1. automated Release Notes Generation
-For every execution, the system analyzes the specific git commit history associated with the build. It generates a detailed, semantic report of changes, categorizing them into Features, Fixes, and Technical Debt. This eliminates the need for manual changelog maintenance.
-
-### 2. Context-Aware Decision Engine
+### 1. Context-Aware Decision Engine
 The manager aggregates data from multiple sources to render a final verdict:
 - **Test Intelligence**: Parses JUnit XML reports to evaluate pass/fail rates and execution time stability.
 - **Code Coverage Enforcement**: Validates line coverage against strict targets (default > 75%).
 - **Security Auditing**: Scans configuration files to ensure critical security constants (like Face Verification Thresholds) remain within safe limits.
 
-### 3. Dual-Mode Interface
+### 2. Dual-Mode Interface
 - **CLI Mode**: Optimized for CI/CD environments (GitHub Actions, GitLab CI) to block or promote builds automatically.
 - **MCP Server Mode**: Implements the Model Context Protocol, allowing external AI agents (such as Claude Desktop or IDE extensions) to query the repository's health status interactively.
 
